@@ -1,0 +1,77 @@
+#include "epollloop.h"
+
+
+
+Epoll::Epoll(int size)
+{
+    //初始化loop节点
+    createEpollRoot(size);
+
+    //初始化事件信息
+    m_ev_arry=new epoll_event[size];
+
+    //更改epoll节点的标志位信息
+    m_limit=size;
+    m_lim_arry=new bool[size];
+    memset(m_limit,0,sizeof(m_limit));
+
+    //初始化epollnode信息
+    chargenode=new shared_ptr<TcpClient>[size];
+
+    m_readnum=0;
+    m_writenum=0;
+}
+
+Epoll::~Epoll()
+{
+    m_readnum=0;
+    m_writenum=0;
+
+    delete chargenode;
+    delete m_lim_arry;
+    delete m_ev_arry;
+}
+
+void Epoll::setListenSock(TcpSer node)
+{
+    m_lis=node;
+
+    m_listenev.events = EPOLLIN;
+    m_listenev.data.ptr=reinterpret_cast<void*>(&m_lis);
+    epoll_ctl(m_epfd, EPOLL_CTL_ADD, m_lis.getListenFd(), &m_listenev);
+}
+
+void Epoll::createEpollRoot(int size)
+{
+    m_epfd=epoll_create(size);
+}
+
+void Epoll::addNode(shared_ptr<TcpClient> node)
+{
+    int ret=find_index();
+    if(ret==-1)
+    {
+        perror("链接人数过多");
+    }
+    m_lim_arry[ret]=true;
+
+    m_ev_arry[ret].
+
+}
+
+void Epoll::rmNode (shared_ptr<TcpClient> node)
+{
+
+}
+
+int  Epoll::find_index()
+{
+    for(int i=0;i<m_limit;i++)
+    {
+        if(this->m_lim_arry[i]==false)
+        {
+            return i;
+        }
+    }
+    return -1;
+}

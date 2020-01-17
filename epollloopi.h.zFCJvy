@@ -1,0 +1,19 @@
+#ifndef EPOLLLOOPI_H
+#define EPOLLLOOPI_H
+#include"epollloop.h"
+#include"head.h"
+class EpollLoop:public Epoll
+{
+public:
+    EpollLoop();
+    ~EpollLoop();
+public:
+
+    void addSer(shared_ptr<TcpSer> add_addr);
+    void removeSer(shared_ptr<TcpSer> add_addr);
+    void loop();
+private:
+    vector<shared_ptr<TcpSer>> vec_ser;
+};
+
+#endif // EPOLLLOOPI_H

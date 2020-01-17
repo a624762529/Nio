@@ -1,0 +1,217 @@
+#include "tcp_client.h"
+
+
+//TCP Client 实现区域
+TcpClient::TcpClient(string ip,int prot,int cfd)
+{
+    this->ip_=ip;
+    this->prot_=prot;
+    this->cfd_=cfd;
+}
+
+int TcpClient::nio_read()
+{
+    char *readarry=nullptr;
+    int arrylen=0;
+    //获取从内存池中获取的空闲内存
+    sock_buf->getFreeFromMemPool(readarry,arrylen);
+    if(arrylen>0)
+    {
+        int ret=read(this->fd,readarry,arrylen);
+        if(ret==0)
+        {
+            cout<<"链接中断"<<this->ip_<<endl;
+            //执行关闭连接操作
+            return 0;
+        }
+        else if(ret==-1)
+        {
+            if(errno!=EWOULDBLOCK)
+            {
+                perror("read err");
+                cout<<__LINE__<<__FUNCTION__<<endl;
+                return 1;
+            }
+        }
+        else
+        {
+            //移动索引
+            sock_buf->moveNofreeIndexFromMemPool(ret);
+        }
+    }
+    //获取从超大内存中获取 的内存节点 不过要在此判断是否获取到了
+    if(sock_buf->get_need_big_buf())
+    {
+        if(sock_buf->get_in_big_buff()==false)
+        {
+            sock_buf->getFromBigBuf();
+        }
+    }
+    else
+    {
+        return 1;
+    }
+    //如果获取到了内存 那就。。。
+    if(sock_buf->get_in_big_buff())
+    {
+        sock_buf->getFreeFromBigBuf(readarry,arrylen);
+        if(arrylen>0)
+        {
+            int ret=read(this->fd,readarry,arrylen);
+            if(ret==0)
+            {
+                cout<<"链接中断"<<this->ip_<<endl;
+                //执行关闭连接操作
+                return 0;
+            }
+            else if(ret==-1)
+            {
+                if(errno!=EWOULDBLOCK)
+                {
+                    perror("read err");
+                    cout<<__LINE__<<__FUNCTION__<<endl;
+                    return 1;
+                }
+            }
+            else
+            {
+                sock_buf->moveNofreeIndexFromBigBuf(ret);
+            }
+        }
+    }
+    return 1;
+}
+
+int TcpClient::nio_write()
+{
+    char *readarry=nullptr;
+    int arrylen=0;
+    sock_buf->getNoFreeFromMemPool(readarry,arrylen);
+    if(arrylen>0)
+    {
+        int ret=write(this->fd,readarry,arrylen);
+        if(ret==0)
+        {
+            cout<<"链接中断"<<this->ip_<<endl;
+            //执行关闭连接操作
+            return 0;
+        }
+        else if(ret==-1)
+        {
+            if(errno!=EWOULDBLOCK)
+            {
+                perror("read err");
+                cout<<__LINE__<<__FUNCTION__<<endl;
+                return 1;
+            }
+        }
+        else
+        {
+            sock_buf->moveFreeIndexFromMemPool(ret);
+        }
+    }
+    //如果超大内存空间尚有空间
+    if(sock_buf->get_in_big_buff()==true)
+    {
+        sock_buf->getNoFreeFromBigBuf(readarry,arrylen);
+        if(arrylen>0)
+        {
+            int ret=write(this->fd,readarry,arrylen);
+            if(ret==0)
+            {
+                cout<<"链接中断"<<this->ip_<<endl;
+                //执行关闭连接操作
+                return 0;
+            }
+            else if(ret==-1)
+            {
+                if(errno!=EWOULDBLOCK)
+                {
+                    perror("read err");
+                    cout<<__LINE__<<__FUNCTION__<<endl;
+                    return 1;
+                }
+            }
+            else
+            {
+                sock_buf->moveFreeIndexFromBigBuf(ret);
+            }
+        }
+    }
+    return 1;
+}
+
+//_cli 是客户和 sock_buf的
+int TcpClient::read_cli(char *arry,int len)
+{
+    char *mem_read=nullptr;
+    int mempoollen=0;
+    int len_=len;
+    this->sock_buf->getNoFreeFromMemPool(mem_read,mempoollen);
+    if(len_>mempoollen)
+    {
+        memcpy(arry,mem_read,mempoollen);
+        sock_buf->moveNofreeIndexFromMemPool(mempoollen);
+        len_=len_-mempoollen;
+        arry+=mempoollen;
+        //重定向参数的内存块
+    }
+    else
+    {
+        memcpy(arry,mem_read,len_);
+        sock_buf->moveNofreeIndexFromMemPool(len_);
+        return len;
+    }
+
+
+    //如果从超大内存空间申请到了元素
+    if(sock_buf->get_need_big_buf()==true)
+    {
+        int bigmemlen=0;
+        this->sock_buf->getNoFreeFromBigBuf(mem_read,bigmemlen);
+        //如果参数中的len长度大于超大内存空间的长度
+        if(len_>bigmemlen)
+        {
+            memcpy(arry,mem_read,bigmemlen);
+            sock_buf->moveNofreeIndexFromBigBuf(bigmemlen);
+            len=len-bigmemlen;
+            arry+=bigmemlen;
+            return mempoollen+bigmemlen;
+        }
+        else
+        {
+            memcpy(arry,mem_read,len_);
+            sock_buf->moveNofreeIndexFromBigBuf(len_);
+            return len;
+        }
+    }
+
+}
+/*
+    将参数的内容写入到sockbuf中
+    晚上写好了
+*/
+int TcpClient::write_cli(char *arry,int len)
+{
+    //将参数中的buf写入到Sockbuf中
+    char *mem_read=nullptr;
+    int mempoolfreelen=0;
+    int len_=len;
+
+    this->sock_buf->getFreeFromMemPool(mem_read,mempoolfreelen);
+    if(mempoolfreelen>len)
+    {
+        memcpy(mem_read,arry,len);
+        this->sock_buf->moveFreeIndexFromMemPool(len);
+        return len;
+    }
+    else if(mempoolfreelen<=len)
+    {
+
+    }
+
+
+    this->sock_buf->getFreeFromBigBuf(mem_read,mempoolfreelen);
+
+}
+
