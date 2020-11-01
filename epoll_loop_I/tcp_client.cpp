@@ -31,7 +31,6 @@ TcpClient::TcpClient(const TcpClient &&cli)
     this->sock_buf=cli.sock_buf;
     this->cfd_=cli.cfd_;
     this->ip_=cli.ip_;
-
     memset( (void*)(&cli),0,sizeof(TcpClient));
 }
 
@@ -159,7 +158,6 @@ int TcpClient::nio_write()
         if(arrylen>0)
         {
             int ret=write(this->cfd_,readarry,arrylen);
-
             if(ret==-1)
             {
                 if(errno!=EWOULDBLOCK)
